@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-key, react/prop-types */
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { DimItem } from 'app/inventory/item-types';
 import {
   useTable,
@@ -46,17 +46,8 @@ import { currentAccountSelector } from 'app/accounts/reducer';
 import { newLoadout } from 'app/loadout/loadout-utils';
 import { applyLoadout } from 'app/loadout/loadout-apply';
 import { LoadoutClass } from 'app/loadout/loadout-types';
-import { getColumns } from './Columns';
+import { getColumns, getHiddenColumns, initialEnabledColumns } from './Columns';
 import { ratingsSelector } from 'app/item-review/reducer';
-
-// TODO maybe move this to utils?
-function isDefined<T>(val: T | undefined): val is T {
-  return val !== undefined;
-}
-
-const initialState = {
-  sortBy: [{ id: 'name' }]
-};
 
 const getRowID = (item: DimItem) => item.id;
 
@@ -131,29 +122,12 @@ function ItemTable({
   // TODO: maybe implement my own table component
 
   const terminal = Boolean(_.last(selection)?.terminal);
-  items = useMemo(() => {
+  const filteredItems = useMemo(() => {
     const categoryHashes = selection.map((s) => s.itemCategoryHash).filter((h) => h > 0);
     return terminal
       ? items.filter((item) => categoryHashes.every((h) => item.itemCategoryHashes.includes(h)))
       : [];
   }, [items, terminal, selection]);
-
-  // TODO: save in settings
-  const [enabledColumns, setEnabledColumns] = useState([
-    'selection',
-    'icon',
-    'name',
-    'dmg',
-    'power',
-    'locked',
-    'tag',
-    'wishList',
-    'rating',
-    'archetype',
-    'perks',
-    'mods',
-    'notes'
-  ]);
 
   const shiftHeld = useShiftHeld();
 
@@ -164,10 +138,17 @@ function ItemTable({
 
   // TODO: really gotta pass these in... need to figure out data dependencies
   // https://github.com/tannerlinsley/react-table/blob/master/docs/api.md
-  const columns: DimColumn[] = useMemo(
-    () => getColumns(items, defs, itemInfos, ratings, wishList),
-    [wishList, items, itemInfos, ratings, defs]
-  );
+  const [columns, hiddenColumns]: [DimColumn[], string[]] = useMemo(() => {
+    const columns = getColumns(filteredItems, defs, itemInfos, ratings, wishList);
+    const hiddenColumns = getHiddenColumns(columns, initialEnabledColumns);
+    return [columns, hiddenColumns];
+  }, [wishList, filteredItems, itemInfos, ratings, defs]);
+
+  const initialState = {
+    sortBy: [{ id: 'name' }]
+  };
+
+  hiddenColumns.pop();
 
   // Use the state and functions returned from useTable to build your UI
   const {
@@ -181,7 +162,7 @@ function ItemTable({
   } = useTable(
     {
       columns,
-      data: items,
+      data: filteredItems,
       initialState,
       getRowID,
       // TODO: probably should reset on query changes too?
@@ -191,38 +172,18 @@ function ItemTable({
     useRowSelect
   ) as TableInstance<DimItem> & UseRowSelectInstanceProps<DimItem>;
 
-  const hiddenColumns: string[] = useMemo(
-    () =>
-      columns
-        .flatMap((c) => {
-          if (c.id && !enabledColumns.includes(c.id)) {
-            const subColumnIds = c.columns?.map((sub) => sub.id) || [];
-            return [c.id, ...subColumnIds];
-          }
-        })
-        .filter(isDefined),
-    [columns, enabledColumns]
-  );
-
-  useEffect(() => setHiddenColumns(hiddenColumns), [setHiddenColumns, hiddenColumns]);
-
   if (!terminal) {
     return <div>No items match the current filters.</div>;
   }
 
-  const onChangeEnabledColumn: (item: { checked: boolean; id: string }) => void = (item) => {
-    const { checked, id } = item;
-    setEnabledColumns((columns) => (checked ? [...columns, id] : columns.filter((c) => c !== id)));
-  };
-
   // TODO: stolen from SearchFilter, should probably refactor into a shared thing
   const onLock = loadingTracker.trackPromise(async (e) => {
     const selectedTag = e.currentTarget.name;
-    const items = selectedFlatRows?.map((d) => d.original);
+    const filteredItems = selectedFlatRows?.map((d) => d.original);
 
     const state = selectedTag === 'lock';
     try {
-      for (const item of items) {
+      for (const item of filteredItems) {
         const store =
           item.owner === 'vault'
             ? item.getStoresService().getActiveStore()!
@@ -240,8 +201,8 @@ function ItemTable({
       showNotification({
         type: 'success',
         title: state
-          ? t('Filter.LockAllSuccess', { num: items.length })
-          : t('Filter.UnlockAllSuccess', { num: items.length })
+          ? t('Filter.LockAllSuccess', { num: filteredItems.length })
+          : t('Filter.UnlockAllSuccess', { num: filteredItems.length })
       });
     } catch (e) {
       showNotification({
@@ -251,8 +212,8 @@ function ItemTable({
       });
     } finally {
       // Touch the stores service to update state
-      if (items.length) {
-        items[0].getStoresService().touch();
+      if (filteredItems.length) {
+        filteredItems[0].getStoresService().touch();
       }
     }
   });
@@ -307,8 +268,7 @@ function ItemTable({
     <>
       <EnabledColumnsSelector
         columns={columns.filter((c) => c.id !== 'selection')}
-        enabledColumns={enabledColumns}
-        onChangeEnabledColumn={onChangeEnabledColumn}
+        setHiddenColumns={setHiddenColumns}
       />
       <ItemActions
         itemsAreSelected={Boolean(selectedFlatRows.length)}

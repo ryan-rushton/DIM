@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import _ from 'lodash';
 import { DimItem } from 'app/inventory/item-types';
 import { Column } from 'react-table';
 import DropDown, { DropDownItem } from './DropDown';
 import { t } from 'app/i18next-t';
+import { initialEnabledColumns, getHiddenColumns } from './Columns';
 
 /**
  * Component for selection of which columns are displayed in the organizer table.
@@ -16,14 +17,20 @@ import { t } from 'app/i18next-t';
  */
 function EnabledColumnsSelector({
   columns,
-  enabledColumns,
-  onChangeEnabledColumn
+  setHiddenColumns
 }: {
   columns: Column<DimItem>[];
-  enabledColumns: string[];
-  onChangeEnabledColumn(item: { checked: boolean; id: string }): void;
+  setHiddenColumns(hiddenColumns: string[]): void;
 }) {
   const items: DropDownItem[] = [];
+
+  const [enabledColumns, setEnabledColumns] = useState(initialEnabledColumns);
+
+  const onChangeEnabledColumn: (item: { checked: boolean; id: string }) => void = (item) => {
+    const { checked, id } = item;
+    setHiddenColumns(getHiddenColumns(columns, enabledColumns));
+    setEnabledColumns((columns) => (checked ? [...columns, id] : columns.filter((c) => c !== id)));
+  };
 
   for (const column of columns) {
     const { id, Header } = column;

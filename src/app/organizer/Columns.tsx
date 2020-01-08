@@ -39,6 +39,40 @@ import { D2ManifestDefinitions } from 'app/destiny2/d2-definitions';
 import { DtrRating } from 'app/item-review/dtr-api-types';
 import { InventoryWishListRoll } from 'app/wishlists/wishlists';
 
+// TODO: save in settings and possibly make a type?
+export const initialEnabledColumns = [
+  'selection',
+  'icon',
+  'name',
+  'dmg',
+  'power',
+  'locked',
+  'tag',
+  'wishList',
+  'rating',
+  'archetype',
+  'perks',
+  'mods',
+  'notes'
+];
+
+/**
+ * Figures out the id's of the hidden columns (including sub-columns) for react-table
+ *
+ * @param columns DimColumn[] for react-table
+ * @param enabledColumns string[] of enabled column ids
+ */
+export function getHiddenColumns(columns: DimColumn[], enabledColumns: string[]) {
+  return _.compact(
+    columns.flatMap((c) => {
+      if (c.id && !enabledColumns.includes(c.id)) {
+        const subColumnIds = c.columns?.map((sub) => sub.id) || [];
+        return [c.id, ...subColumnIds];
+      }
+    })
+  );
+}
+
 // TODO: drop wishlist columns if no wishlist loaded
 // TODO: d1/d2 columns
 // TODO: stat ranges
