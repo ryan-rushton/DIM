@@ -145,10 +145,9 @@ function ItemTable({
   }, [wishList, filteredItems, itemInfos, ratings, defs]);
 
   const initialState = {
-    sortBy: [{ id: 'name' }]
+    sortBy: [{ id: 'name' }],
+    hiddenColumns
   };
-
-  hiddenColumns.pop();
 
   // Use the state and functions returned from useTable to build your UI
   const {
